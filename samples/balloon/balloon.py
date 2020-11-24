@@ -54,22 +54,22 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 ############################################################
 
 
-class BalloonConfig(Config):
+class CustomConfig(Config):
     """Configuration for training on the toy  dataset.
     Derives from the base Config class and overrides some values.
     """
     # Give the configuration a recognizable name
-    NAME = "balloon"
+    NAME = "custom"
 
     # We use a GPU with 12GB memory, which can fit two images.
     # Adjust down if you use a smaller GPU.
-    IMAGES_PER_GPU = 2
+    IMAGES_PER_GPU = 1
 
     # Number of classes (including background)
-    NUM_CLASSES = 1 + 1  # Background + balloon
+    NUM_CLASSES = 1 + 7  # Background + balloon
 
     # Number of training steps per epoch
-    STEPS_PER_EPOCH = 100
+    STEPS_PER_EPOCH = 50
 
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
@@ -79,15 +79,21 @@ class BalloonConfig(Config):
 #  Dataset
 ############################################################
 
-class BalloonDataset(utils.Dataset):
+class CustomDataset(utils.Dataset):
 
-    def load_balloon(self, dataset_dir, subset):
+    def load_custom(self, dataset_dir, subset):
         """Load a subset of the Balloon dataset.
         dataset_dir: Root directory of the dataset.
         subset: Subset to load: train or val
         """
         # Add classes. We have only one class to add.
-        self.add_class("balloon", 1, "balloon")
+        self.add_class("custom", 1, "carcinoma_in_situ")
+        self.add_class("custom", 2, "light_dysplastic")
+        self.add_class("custom", 3, "moderate_dysplastic")
+        self.add_class("custom", 4, "normal_columnar")
+        self.add_class("custom", 5, "normal_intermediate")
+        self.add_class("custom", 6, "normal_superficiel")
+        self.add_class("custom", 7, "severe_dysplastic")
 
         # Train or validation dataset?
         assert subset in ["train", "val"]
@@ -124,9 +130,33 @@ class BalloonDataset(utils.Dataset):
             # The if condition is needed to support VIA versions 1.x and 2.x.
             if type(a['regions']) is dict:
                 polygons = [r['shape_attributes'] for r in a['regions'].values()]
+                custom = [s['region_attributes'] for s in a['regions'].values]
             else:
-                polygons = [r['shape_attributes'] for r in a['regions']] 
+                polygons = [r['shape_attributes'] for r in a['regions']]
+                custom = [s['region_attributes'] for s in a['regions']] 
 
+            # n['label'] need put the same label as the json file in region_attributes
+            class_ids=[]
+            for n in custom:
+                try:
+                    if n['class_id']=='carcinoma_in_situ':
+                        class_ids.append(1)
+                    elif n['class_id']=='light_dysplastic':
+                        class_ids.append(2)
+                    elif n['class_id']=='moderate_dysplastic':
+                        class_ids.append(3)
+                    elif n['class_id']=='normal_columnar':
+                        class_ids.append(4)
+                    elif n['class_id']=='normal_intermediate':
+                        class_ids.append(5)
+                    elif n['class_id']=='normal_superficiel':
+                        class_ids.append(6)
+                    elif n['class_id']=='severe_dysplastic':
+                        class_ids.append(7)
+                except:
+                    pass
+
+            print(class_ids)
             # load_mask() needs the image size to convert polygons to masks.
             # Unfortunately, VIA doesn't include it in JSON, so we must read
             # the image. This is only managable since the dataset is tiny.
@@ -135,11 +165,12 @@ class BalloonDataset(utils.Dataset):
             height, width = image.shape[:2]
 
             self.add_image(
-                "balloon",
+                "custom",
                 image_id=a['filename'],  # use file name as a unique image id
                 path=image_path,
                 width=width, height=height,
-                polygons=polygons)
+                polygons=polygons,
+                class_ids=class_ids)
 
     def load_mask(self, image_id):
         """Generate instance masks for an image.
@@ -150,8 +181,11 @@ class BalloonDataset(utils.Dataset):
         """
         # If not a balloon dataset image, delegate to parent class.
         image_info = self.image_info[image_id]
-        if image_info["source"] != "balloon":
+        if image_info["source"] != "custom":
             return super(self.__class__, self).load_mask(image_id)
+
+        class_ids = image_info['class_ids']
+        print("Here is the ID",class_ids)
 
         # Convert polygons to a bitmap mask of shape
         # [height, width, instance_count]
@@ -165,12 +199,15 @@ class BalloonDataset(utils.Dataset):
 
         # Return mask, and array of class IDs of each instance. Since we have
         # one class ID only, we return an array of 1s
-        return mask.astype(np.bool), np.ones([mask.shape[-1]], dtype=np.int32)
+        class_ids = np.array(class_ids, dtype=np.int32)
+        print(class_ids)
+        return mask, class_ids
+        #return mask.astype(np.bool), np.ones([mask.shape[-1]], dtype=np.int32)
 
     def image_reference(self, image_id):
         """Return the path of the image."""
         info = self.image_info[image_id]
-        if info["source"] == "balloon":
+        if info["source"] == "custom":
             return info["path"]
         else:
             super(self.__class__, self).image_reference(image_id)
@@ -179,13 +216,13 @@ class BalloonDataset(utils.Dataset):
 def train(model):
     """Train the model."""
     # Training dataset.
-    dataset_train = BalloonDataset()
-    dataset_train.load_balloon(args.dataset, "train")
+    dataset_train = CustomDataset()
+    dataset_train.load_custom(args.dataset, "train")
     dataset_train.prepare()
 
     # Validation dataset
-    dataset_val = BalloonDataset()
-    dataset_val.load_balloon(args.dataset, "val")
+    dataset_val = CustomDataset()
+    dataset_val.load_custom(args.dataset, "val")
     dataset_val.prepare()
 
     # *** This training schedule is an example. Update to your needs ***
@@ -195,7 +232,7 @@ def train(model):
     print("Training network heads")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=30,
+                epochs=10,
                 layers='heads')
 
 
@@ -315,9 +352,9 @@ if __name__ == '__main__':
 
     # Configurations
     if args.command == "train":
-        config = BalloonConfig()
+        config = CustomConfig()
     else:
-        class InferenceConfig(BalloonConfig):
+        class InferenceConfig(CustomConfig):
             # Set batch size to 1 since we'll be running inference on
             # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
             GPU_COUNT = 1
@@ -349,15 +386,15 @@ if __name__ == '__main__':
         weights_path = args.weights
 
     # Load weights
-    print("Loading weights ", weights_path)
-    if args.weights.lower() == "coco":
-        # Exclude the last layers because they require a matching
-        # number of classes
-        model.load_weights(weights_path, by_name=True, exclude=[
-            "mrcnn_class_logits", "mrcnn_bbox_fc",
-            "mrcnn_bbox", "mrcnn_mask"])
-    else:
-        model.load_weights(weights_path, by_name=True)
+    # print("Loading weights ", weights_path)
+    # if args.weights.lower() == "coco":
+    #     # Exclude the last layers because they require a matching
+    #     # number of classes
+    #     model.load_weights(weights_path, by_name=True, exclude=[
+    #         "mrcnn_class_logits", "mrcnn_bbox_fc",
+    #         "mrcnn_bbox", "mrcnn_mask"])
+    # else:
+    #     model.load_weights(weights_path, by_name=True)
 
     # Train or evaluate
     if args.command == "train":
