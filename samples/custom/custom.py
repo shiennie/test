@@ -47,7 +47,7 @@ COCO_WEIGHTS_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 
 # Directory to save logs and model checkpoints, if not provided
 # through the command line argument --logs
-DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
+DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs/newcustom")
 
 ############################################################
 #  Configurations
@@ -69,10 +69,10 @@ class CustomConfig(Config):
     NUM_CLASSES = 1 + 7  # Background + balloon
 
     # Number of training steps per epoch
-    STEPS_PER_EPOCH = 3
+    STEPS_PER_EPOCH = 50
 
     # Skip detections with < 90% confidence
-    DETECTION_MIN_CONFIDENCE = 0.9
+    DETECTION_MIN_CONFIDENCE = 0.7
 
 
 ############################################################
@@ -231,7 +231,7 @@ def train(model):
     print("Training network heads")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=1,
+                epochs=2,
                 layers='heads')
 
 
