@@ -69,10 +69,10 @@ class CustomConfig(Config):
     NUM_CLASSES = 1 + 7  # Background + balloon
 
     # Number of training steps per epoch
-    STEPS_PER_EPOCH = 100
+    STEPS_PER_EPOCH = 200
 
     # Skip detections with < 90% confidence
-    DETECTION_MIN_CONFIDENCE = 0.6
+    DETECTION_MIN_CONFIDENCE = 0.7
 
 
 ############################################################
@@ -231,7 +231,7 @@ def train(model):
     print("Training network heads")
     model.train(dataset_train, dataset_val,
                 learning_rate=config.LEARNING_RATE,
-                epochs=25,
+                epochs=30,
                 layers='heads')
 
 
